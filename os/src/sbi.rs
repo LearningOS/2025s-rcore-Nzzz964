@@ -12,6 +12,7 @@ fn sbi_call(which: usize, arg0: usize, arg1: usize, arg2: usize) -> usize {
         asm!(
             "li x16, 0",
             "ecall",
+            // 系统调用的返回值通常通过 x10 返回，所以这里用 inlateout 复用寄存器
             inlateout("x10") arg0 => ret,
             in("x11") arg1,
             in("x12") arg2,

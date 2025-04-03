@@ -3,5 +3,6 @@ target = "riscv64gc-unknown-none-elf"
 
 [target.riscv64gc-unknown-none-elf]
 rustflags = [
+    # 定义 链接器（ld）的函数，指定链接器脚本 linker.ld
     "-Clink-arg=-Tsrc/linker.ld", "-Cforce-frame-pointers=yes"
 ]

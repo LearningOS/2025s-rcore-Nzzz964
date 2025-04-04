@@ -14,7 +14,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_APP_NUM;
+use crate::config::{MAX_APP_NUM, MAX_SYSCALL_ID};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
@@ -54,6 +54,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_syscall_cnt: [0; MAX_SYSCALL_ID],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             // 初始化每个 APP 的 kernel_stack（TrapContext::app_init_context），并返回 kernel_stack 地址
@@ -140,6 +141,22 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// Increase the syscall count for the current task.
+    fn increase_current_syscall(&self, syscall_id: usize) -> usize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let syscall_cnt = &mut inner.tasks[current].task_syscall_cnt[syscall_id];
+        *syscall_cnt += 1;
+        *syscall_cnt
+    }
+
+    /// Get the syscall count of the current task
+    fn get_current_syscall_cnt(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_syscall_cnt[syscall_id]
+    }
 }
 
 /// Run the first task in task list.
@@ -173,4 +190,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// Increase the syscall count for the current task and return the updated count.
+pub fn increase_current_syscall(syscall_id: usize) -> usize {
+    TASK_MANAGER.increase_current_syscall(syscall_id)
+}
+
+/// Get the specific task syscall count
+pub fn get_current_syscall_cnt(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_current_syscall_cnt(syscall_id)
 }

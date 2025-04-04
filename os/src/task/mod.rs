@@ -56,6 +56,11 @@ lazy_static! {
             task_status: TaskStatus::UnInit,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
+            // 初始化每个 APP 的 kernel_stack（TrapContext::app_init_context），并返回 kernel_stack 地址
+            // TaskContext 将 ra 设置为 __restore 函数地址
+            // 设置 kstack 为 APP 的 kernel_stack 地址
+            // NOTE：请记住，只有 sret 能进行 S态 -> U态 的转变
+            // TaskManager 是在 S态 运行的
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
             task.task_status = TaskStatus::Ready;
         }

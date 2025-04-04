@@ -30,5 +30,8 @@ __switch:
     .endr
     # restore kernel stack of next task
     ld sp, 8(a1)
+    # ret 相当于 jalr x0, ra, 0
+    # jalr（Jump and Link Register）：跳转到 ra + 0 的地址，并将结果链接到 x0（即丢弃链接，因为 x0 是只读的零寄存器）
+    # 作用：直接跳转到 ra 寄存器保存的返回地址，实现函数返回。
     ret
 

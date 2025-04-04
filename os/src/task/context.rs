@@ -16,8 +16,11 @@ impl TaskContext {
     /// Create a new empty task context
     pub fn zero_init() -> Self {
         Self {
+            // 什么是 ra 寄存器？
+            // 在 risc-v 中调用 ret 就会跳转到 ra 寄存器中保存的指令的地址处开始执行
             ra: 0,
             sp: 0,
+            // “保存寄存器（save register）” 的状态 s0-s11
             s: [0; 12],
         }
     }

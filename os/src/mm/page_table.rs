@@ -30,6 +30,7 @@ bitflags! {
 #[derive(Copy, Clone)]
 #[repr(C)]
 /// page table entry structure
+/// 页表项
 pub struct PageTableEntry {
     /// bits of page table entry
     pub bits: usize,
@@ -70,11 +71,19 @@ impl PageTableEntry {
     pub fn executable(&self) -> bool {
         (self.flags() & PTEFlags::X) != PTEFlags::empty()
     }
+    /// the page pointerd by page table entry is user?
+    pub fn is_user(&self) -> bool {
+        (self.flags() & PTEFlags::U) != PTEFlags::empty()
+    }
 }
 
 /// page table structure
 pub struct PageTable {
     root_ppn: PhysPageNum,
+    // FrameTracker 实现了 drop trait
+    // 这里将 frames 绑定在 PageTable 的作用是
+    // 将 FrameTracker 变量的生命周期和 PageTable 做绑定
+    // PageTable 生命周期结束时，frames 会自动调用 drop 完成 frame 的回收
     frames: Vec<FrameTracker>,
 }
 
@@ -101,6 +110,7 @@ impl PageTable {
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
         for (i, idx) in idxs.iter().enumerate() {
+            // get_pte_array 包含 512 个页表项 ，也就是 [PageTableEntry;512]
             let pte = &mut ppn.get_pte_array()[*idx];
             if i == 2 {
                 result = Some(pte);

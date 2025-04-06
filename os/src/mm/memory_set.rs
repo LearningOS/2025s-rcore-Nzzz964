@@ -35,6 +35,9 @@ lazy_static! {
 }
 /// address space
 pub struct MemorySet {
+    // 注意 PageTable 下 挂着所有 **多级页表的节点所在的物理页帧**
+    // 而每个 MapArea 下则挂着对应逻辑段中的 **数据所在的物理页帧**
+    // 这两部分 合在一起构成了一个地址空间所需的所有物理页帧
     page_table: PageTable,
     areas: Vec<MapArea>,
 }
@@ -262,6 +265,33 @@ impl MemorySet {
             false
         }
     }
+
+    /// Checks if the given virtual address range overlaps with any existing areas in memory set
+    #[allow(unused)]
+    pub fn is_overlap(&self, start: VirtAddr, end: VirtAddr) -> bool {
+        for area in &self.areas {
+            if area.is_overlap(VPNRange::new(start.floor(), end.ceil())) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Unmap a framed area in the memory set within the specified virtual address range
+    pub fn unmap_framed_area(&mut self, start: VirtAddr, end: VirtAddr) -> bool {
+        let mut found = false;
+
+        self.areas.retain_mut(|area| {
+            let need_delete = area.vpn_range.get_start() == start.floor()
+                && area.vpn_range.get_end() == end.ceil();
+            if need_delete {
+                area.unmap(&mut self.page_table);
+                found = true;
+            }
+            !need_delete
+        });
+        found
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
@@ -354,6 +384,17 @@ impl MapArea {
                 break;
             }
             current_vpn.step();
+        }
+    }
+
+    #[allow(unused)]
+    pub fn is_overlap(&self, vpnrange: VPNRange) -> bool {
+        if vpnrange.get_end() > self.vpn_range.get_start()
+            && vpnrange.get_start() < self.vpn_range.get_end()
+        {
+            true
+        } else {
+            false
         }
     }
 }

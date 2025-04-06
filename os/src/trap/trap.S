@@ -48,6 +48,10 @@ __restore:
     # switch to user space
     csrw satp, a1
     sfence.vma
+    # 这里保存用户程序的 *TrapContext 到 sscratch 中
+    # 然后 sret 进入 U 态，开始运行用户程序
+    # 如果用户程序调用系统调用，则进入 S 态  __alltraps
+    # 这也就是为什么 __alltraps 一开始的 sscratch 存储的是 *TrapContext
     csrw sscratch, a0
     mv sp, a0
     # now sp points to TrapContext in user space, start restoring based on it

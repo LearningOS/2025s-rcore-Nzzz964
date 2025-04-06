@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -153,6 +154,55 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// Increase the specific syscall counter of the current task
+    fn increase_current_syscall(&self, syscall_id: usize) -> usize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let cnt = inner.tasks[current]
+            .task_syscall_cnt
+            .entry(syscall_id)
+            .or_insert(0);
+        *cnt += 1;
+        *cnt
+    }
+
+    /// Get the specific syscall count of the current task
+    fn get_current_syscall_cnt(&self, syscall_id: usize) -> usize {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        if let Some(count) = inner.tasks[current].task_syscall_cnt.get(&syscall_id) {
+            *count
+        } else {
+            0
+        }
+    }
+
+    fn mmap_current(
+        &self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        permission: MapPermission,
+    ) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memset = &mut inner.tasks[current].memory_set;
+
+        // if the va range overlap with a mapped va
+        if memset.is_overlap(start_va, end_va) {
+            return false;
+        }
+        
+        memset.insert_framed_area(start_va, end_va, permission);
+        true
+    }
+
+    fn munmap_current(&self, start_va: VirtAddr, end_va: VirtAddr) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memset = &mut inner.tasks[current].memory_set;
+        memset.unmap_framed_area(start_va, end_va)
+    }
 }
 
 /// Run the first task in task list.
@@ -201,4 +251,24 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Increase the specific syscall counter of the current task
+pub fn increase_current_syscall(syscall_id: usize) -> usize {
+    TASK_MANAGER.increase_current_syscall(syscall_id)
+}
+
+/// Get the specific syscall count of the current task
+pub fn get_current_syscall_cnt(syscall_id: usize) -> usize {
+    TASK_MANAGER.get_current_syscall_cnt(syscall_id)
+}
+
+/// Map a virtual address range to the current task's memory set
+pub fn mmap_current(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) -> bool {
+    TASK_MANAGER.mmap_current(start_va, end_va, permission)
+}
+
+/// Unmap a virtual address range from the current task's memory set
+pub fn munmap_current(start_va: VirtAddr, end_va: VirtAddr) -> bool {
+    TASK_MANAGER.munmap_current(start_va, end_va)
 }

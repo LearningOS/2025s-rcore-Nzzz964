@@ -7,6 +7,7 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::mm::{MapPermission, VirtAddr};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
@@ -59,6 +60,9 @@ pub fn run_tasks() {
             let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
             // access coming task TCB exclusively
             let mut task_inner = task.inner_exclusive_access();
+            // stride scheduling
+            task_inner.pass += task_inner.stride;
+
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
             // release coming task_inner manually
@@ -108,4 +112,26 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     unsafe {
         __switch(switched_task_cx_ptr, idle_task_cx_ptr);
     }
+}
+
+/// Map a virtual address range to the current task's memory set
+pub fn mmap_current(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission) -> bool {
+    let task = current_task().unwrap();
+    let mut pcb = task.inner_exclusive_access();
+
+    if pcb.memory_set.is_overlap(start_va, end_va) {
+        return false;
+    }
+
+    pcb.memory_set
+        .insert_framed_area(start_va, end_va, permission);
+    true
+}
+
+/// Unmap a virtual address range from the current task's memory set
+pub fn munmap_current(start_va: VirtAddr, end_va: VirtAddr) -> bool {
+    let task = current_task().unwrap();
+    let mut pcb = task.inner_exclusive_access();
+
+    pcb.memory_set.remove_framed_area(start_va, end_va)
 }

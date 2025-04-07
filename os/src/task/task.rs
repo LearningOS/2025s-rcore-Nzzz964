@@ -1,7 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{BIG_STRIDE, DEFAULT_PRIORITY, TRAP_CONTEXT_BASE};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -68,6 +68,15 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Stride scheduling stride counter
+    /// stride field is inversely proportional to priority
+    pub stride: usize,
+
+    /// Stride scheduling stride step
+    /// TCB with the minimum value will be the next running task
+    /// pass += stride;
+    pub pass: usize,
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +127,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: BIG_STRIDE / DEFAULT_PRIORITY,
+                    pass: 0,
                 })
             },
         };
@@ -191,6 +202,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    stride: BIG_STRIDE / DEFAULT_PRIORITY,
+                    pass: 0,
                 })
             },
         });
@@ -204,6 +217,27 @@ impl TaskControlBlock {
         task_control_block
         // **** release child PCB
         // ---- release parent PCB
+    }
+
+    /// Create a new child process with the given ELF data
+    ///
+    /// Similar to fork but replaces the memory layout with a new executable
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let mut parent_inner = self.inner_exclusive_access();
+
+        // create a TCB
+        let task_control_block = Arc::new(TaskControlBlock::new(elf_data));
+
+        let mut child_inner = task_control_block.inner_exclusive_access();
+
+        // set parent
+        child_inner.parent = Some(Arc::downgrade(self));
+        // add child
+        parent_inner.children.push(task_control_block.clone());
+
+        drop(child_inner);
+
+        task_control_block
     }
 
     /// get pid of process

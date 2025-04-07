@@ -300,6 +300,30 @@ impl MemorySet {
             false
         }
     }
+
+    /// Checks if the given virtual address range overlaps with any existing areas in memory set
+    #[allow(unused)]
+    pub fn is_overlap(&self, start: VirtAddr, end: VirtAddr) -> bool {
+        self.areas.iter().any(|area| {
+            area.vpn_range
+                .is_overlap(VPNRange::new(start.floor(), end.ceil()))
+        })
+    }
+
+    /// Remove a framed area in the memory set within the specified virtual address range
+    pub fn remove_framed_area(&mut self, start: VirtAddr, end: VirtAddr) -> bool {
+        let mut found = false;
+        self.areas.retain_mut(|area| {
+            let need_delete = area.vpn_range.get_start() == start.floor()
+                && area.vpn_range.get_end() == end.ceil();
+            if need_delete {
+                area.unmap(&mut self.page_table);
+                found = true;
+            }
+            !need_delete
+        });
+        found
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

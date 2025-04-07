@@ -227,6 +227,10 @@ where
     pub fn get_end(&self) -> T {
         self.r
     }
+
+    pub fn is_overlap(&self, sr: SimpleRange<T>) -> bool {
+        sr.r > self.l && sr.l < self.r
+    }
 }
 impl<T> IntoIterator for SimpleRange<T>
 where

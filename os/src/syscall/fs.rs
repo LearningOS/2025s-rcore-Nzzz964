@@ -88,7 +88,7 @@ pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
         return -1;
     }
     let file_stat = inner.fd_table[fd].as_ref().unwrap().stat();
-    copy_to_userspace::<Stat>(token, &file_stat as *const _ as *const u8, st as *const u8);
+    copy_to_userspace(token, &file_stat, st);
     0
 }
 

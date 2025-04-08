@@ -161,9 +161,9 @@ impl PageTable {
 }
 
 /// Copies data from kernel space to user space.
-pub fn copy_to_userspace<T>(user_token: usize, src: *const u8, dst: *const u8) {
-    let user_buffers = translated_byte_buffer(user_token, dst, size_of::<T>());
-    let mut src_ptr = src;
+pub fn copy_to_userspace<T>(user_token: usize, src: *const T, dst: *mut T) {
+    let user_buffers = translated_byte_buffer(user_token, dst as *const u8, size_of::<T>());
+    let mut src_ptr = src as *const u8;
     for buffer in user_buffers {
         let buffer_len = buffer.len();
         unsafe {

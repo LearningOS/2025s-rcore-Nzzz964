@@ -1,4 +1,6 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
+use core::mem::size_of;
+
 use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::string::String;
 use alloc::vec;
@@ -155,6 +157,19 @@ impl PageTable {
     /// get the token from the page table
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
+    }
+}
+
+/// Copies data from kernel space to user space.
+pub fn copy_to_userspace<T>(user_token: usize, src: *const u8, dst: *const u8) {
+    let user_buffers = translated_byte_buffer(user_token, dst, size_of::<T>());
+    let mut src_ptr = src;
+    for buffer in user_buffers {
+        let buffer_len = buffer.len();
+        unsafe {
+            core::ptr::copy(src_ptr, buffer.as_mut_ptr(), buffer_len);
+            src_ptr = src_ptr.add(buffer_len);
+        }
     }
 }
 

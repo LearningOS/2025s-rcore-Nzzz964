@@ -1,12 +1,10 @@
 //! Process management syscalls
-use core::mem::size_of;
-
 use alloc::sync::Arc;
 
 use crate::{
     config::BIG_STRIDE,
-    loader::get_app_data_by_name,
-    mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission, VirtAddr},
+    fs::{open_file, OpenFlags},
+    mm::{copy_to_userspace, translated_refmut, translated_str, MapPermission, VirtAddr},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next, mmap_current,
         munmap_current, suspend_current_and_run_next,
@@ -119,16 +117,11 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
         sec: us / 1_000_000,
         usec: us % 1_000_000,
     };
-    let mut timeval = &timeval as *const TimeVal as *const u8;
-
-    let vecs = translated_byte_buffer(current_user_token(), ts as *const u8, size_of::<TimeVal>());
-    for vec in vecs {
-        let s = vec.len();
-        unsafe {
-            timeval.copy_to(vec.as_mut_ptr(), s);
-            timeval = timeval.offset(s as isize)
-        }
-    }
+    copy_to_userspace::<TimeVal>(
+        current_user_token(),
+        &timeval as *const _ as *const u8,
+        ts as *mut u8,
+    );
     0
 }
 
@@ -197,9 +190,10 @@ pub fn sys_spawn(path: *const u8) -> isize {
     trace!("kernel: sys_spawn pid:{}", current_task().unwrap().pid.0);
     let token = current_user_token();
     let path = translated_str(token, path);
-    if let Some(data) = get_app_data_by_name(path.as_str()) {
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
         let task = current_task().unwrap();
-        let new_task = task.spawn(data);
+        let all_data: alloc::vec::Vec<u8> = app_inode.read_all();
+        let new_task = task.spawn(all_data.as_slice());
         let pid = new_task.pid.0 as isize;
         add_task(new_task);
         pid

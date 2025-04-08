@@ -18,6 +18,7 @@ pub struct EasyFileSystem {
 }
 
 type DataBlock = [u8; BLOCK_SZ];
+
 /// An easy fs over a block device
 impl EasyFileSystem {
     /// A data block of block size
@@ -116,11 +117,28 @@ impl EasyFileSystem {
         let inode_size = core::mem::size_of::<DiskInode>();
         let inodes_per_block = (BLOCK_SZ / inode_size) as u32;
         let block_id = self.inode_area_start_block + inode_id / inodes_per_block;
+        // BLOCK_SZ is 512 byte, then size_of::<DiskInode>() is 128 byte
+        // So that, a block can contain 512/128=4 DiskInode
+        // the (u32, usize) is (block_id, offset)
         (
             block_id,
             (inode_id % inodes_per_block) as usize * inode_size,
         )
     }
+
+    /// 从 block_id 和 block_offset 计算 inode_id
+    pub fn get_inode_id(&self, block_id: usize, block_offset: usize) -> u32 {
+        let inode_area_start_block = self.inode_area_start_block;
+        let block_diff = block_id - inode_area_start_block as usize;
+
+        let inodes_per_block = BLOCK_SZ / core::mem::size_of::<DiskInode>();
+
+        let inode_id =
+            block_diff * inodes_per_block + block_offset / core::mem::size_of::<DiskInode>();
+
+        inode_id as u32
+    }
+
     /// Get data block by id
     pub fn get_data_block_id(&self, data_block_id: u32) -> u32 {
         self.data_area_start_block + data_block_id
@@ -147,5 +165,11 @@ impl EasyFileSystem {
             &self.block_device,
             (block_id - self.data_area_start_block) as usize,
         )
+    }
+
+    /// Deallocate a diskinode
+    pub fn dealloc_diskinode(&mut self, inode_id: u32) {
+        self.inode_bitmap
+            .dealloc(&self.block_device, inode_id as usize);
     }
 }

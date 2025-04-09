@@ -1,6 +1,8 @@
 //! Types related to task management & Functions for completely changing TCB
 
-use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle, SignalActions, SignalFlags, TaskContext};
+use super::{
+    kstack_alloc, pid_alloc, KernelStack, PidHandle, SignalActions, SignalFlags, TaskContext,
+};
 use crate::{
     config::TRAP_CONTEXT_BASE,
     fs::{File, Stdin, Stdout},
@@ -182,8 +184,12 @@ impl TaskControlBlock {
             .unwrap()
             .ppn();
         // push arguments on user stack
+        // the user_sp grows highAddr to lowAddr
         user_sp -= (args.len() + 1) * core::mem::size_of::<usize>();
         let argv_base = user_sp;
+        // prepare argv usize mut in userspace, represent each args
+        // argv[0] is the program name
+        // for example, ls -ahl.  argv[0] = 'ls', argv[1] = '-ahl'
         let mut argv: Vec<_> = (0..=args.len())
             .map(|arg| {
                 translated_refmut(
@@ -192,15 +198,22 @@ impl TaskControlBlock {
                 )
             })
             .collect();
+
         *argv[args.len()] = 0;
+        // copy argv to user_sp through phyaddr
         for i in 0..args.len() {
+            // when i = 0, *now user_sp -> argv_base
             user_sp -= args[i].len() + 1;
+            // argv[i] = user_sp -> 'abcde'
+            // for example, ls -ahl
+            // argv[1] = user_sp -> '-ahl'
             *argv[i] = user_sp;
             let mut p = user_sp;
             for c in args[i].as_bytes() {
                 *translated_refmut(memory_set.token(), p as *mut u8) = *c;
                 p += 1;
             }
+            // '\0'
             *translated_refmut(memory_set.token(), p as *mut u8) = 0;
         }
         // make the user_sp aligned to 8B for k210 platform

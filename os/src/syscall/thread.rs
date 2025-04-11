@@ -37,10 +37,20 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     let mut process_inner = process.inner_exclusive_access();
     // add new thread to current process
     let tasks = &mut process_inner.tasks;
+    // the vec of tasks will never pop, and the tasks.len() only grows.
     while tasks.len() < new_task_tid + 1 {
         tasks.push(None);
     }
     tasks[new_task_tid] = Some(Arc::clone(&new_task));
+    process_inner
+        .mutex_deadlock_detector
+        .inner_exclusive_access()
+        .thread_join(new_task_tid);
+    process_inner
+        .semaphore_deadlock_detector
+        .inner_exclusive_access()
+        .thread_join(new_task_tid);
+
     let new_task_trap_cx = new_task_inner.get_trap_cx();
     *new_task_trap_cx = TrapContext::app_init_context(
         entry,
@@ -110,6 +120,15 @@ pub fn sys_waittid(tid: usize) -> i32 {
         return -1;
     }
     if let Some(exit_code) = exit_code {
+        process_inner
+            .mutex_deadlock_detector
+            .inner_exclusive_access()
+            .thread_exit(tid);
+        process_inner
+            .semaphore_deadlock_detector
+            .inner_exclusive_access()
+            .thread_exit(tid);
+
         // dealloc the exited thread
         process_inner.tasks[tid] = None;
         exit_code

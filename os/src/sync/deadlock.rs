@@ -141,7 +141,7 @@ impl DeadlockDetectorInner {
             // we can allocate the resource
             // else, we need to save the request matrix
             // request[tid][res_id] = k, means Thread(tid) is waiting(sleep/block) for k resources of res_id
-            if self.available[res_id] >= self.request[tid][res_id] {
+            if self.available[res_id] >= res_cnt {
                 self.request[tid][res_id] -= res_cnt;
                 self.allocation[tid][res_id] += res_cnt;
                 self.available[res_id] -= res_cnt;

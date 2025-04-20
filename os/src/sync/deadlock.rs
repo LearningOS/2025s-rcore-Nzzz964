@@ -80,27 +80,6 @@ impl DeadlockDetectorInner {
             let mut finished = vec![false; self.thread_count];
             let mut work = self.available.clone();
 
-            debug!(
-                "\nres_id: {:?}\ntid: {:?}\navailable: {:?}\n\
-                allocation: {}\n\
-                request: {}",
-                tid,
-                res_id,
-                self.available,
-                self.allocation
-                    .iter()
-                    .enumerate()
-                    .map(|(i, row)| format!("\n  Thread {}: {:?}", i, row))
-                    .collect::<Vec<_>>()
-                    .join(""),
-                self.request
-                    .iter()
-                    .enumerate()
-                    .map(|(i, row)| format!("\n  Thread {}: {:?}", i, row))
-                    .collect::<Vec<_>>()
-                    .join("")
-            );
-
             loop {
                 let brk = (0..self.thread_count)
                     .into_iter()
@@ -128,14 +107,9 @@ impl DeadlockDetectorInner {
                     break;
                 }
             }
-            debug!("finished: {:?}", finished);
             finished.iter().all(|x| *x)
         };
 
-        debug!(
-            "is safe tid: {:?} res_id: {:?} safe: {:?}",
-            tid, res_id, safe
-        );
         if safe {
             // if current available matrix is enough for request matrix
             // we can allocate the resource

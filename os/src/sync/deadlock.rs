@@ -1,7 +1,7 @@
 use core::cell::RefMut;
 
+use alloc::vec;
 use alloc::vec::Vec;
-use alloc::{format, vec};
 
 use super::UPSafeCell;
 
